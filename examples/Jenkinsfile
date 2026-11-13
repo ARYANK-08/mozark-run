@@ -1,0 +1,46 @@
+// Needs the Docker Pipeline plugin and a Jenkins agent that can run Docker.
+// Add the CI key as a "Secret text" credential with the id MOZARK_TOKEN.
+pipeline {
+  agent any
+
+  environment {
+    MOZARK_API_URL    = 'https://<app-studio-api>'
+    MOZARK_APP_URL    = 'https://<app-studio-ui>'
+    MOZARK_ORG_ID     = '<org-id>'
+    MOZARK_APP_ID     = '<app-id>'
+    MOZARK_PROJECT_ID = '<project-id>'
+    MOZARK_SUITE_ID   = '<suite-id>'
+    MOZARK_RESULTS_DIR = 'results'
+  }
+
+  stages {
+    stage('Build app') {
+      steps {
+        sh './gradlew assembleRelease'
+      }
+    }
+
+    stage('App Studio suite') {
+      agent {
+        docker {
+          image 'ghcr.io/aryank-08/mozark-run:1'
+          reuseNode true
+        }
+      }
+      environment {
+        MOZARK_TOKEN      = credentials('MOZARK_TOKEN')
+        MOZARK_BUILD_PATH = 'app/build/outputs/apk/release/app-release.apk'
+      }
+      steps {
+        sh 'mozark-run'
+      }
+    }
+  }
+
+  post {
+    always {
+      junit allowEmptyResults: true, testResults: 'results/junit.xml'
+      archiveArtifacts allowEmptyArchive: true, artifacts: 'results/**'
+    }
+  }
+}

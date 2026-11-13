@@ -1,0 +1,15 @@
+# .gitlab-ci.yml
+# CI/CD variables: MOZARK_TOKEN (masked), MOZARK_API_URL, MOZARK_APP_URL,
+# MOZARK_ORG_ID, MOZARK_APP_ID, MOZARK_PROJECT_ID, MOZARK_SUITE_ID.
+app-studio:
+  image: ghcr.io/aryank-08/mozark-run:1
+  timeout: 1h
+  variables:
+    MOZARK_APP_VERSION: $CI_COMMIT_REF_NAME
+  script:
+    - mozark-run
+  artifacts:
+    when: always
+    paths: [results/]
+    reports:
+      junit: results/junit.xml

@@ -1,0 +1,15 @@
+# Repository variables: MOZARK_TOKEN (secured), MOZARK_API_URL, MOZARK_APP_URL,
+# MOZARK_ORG_ID, MOZARK_APP_ID, MOZARK_PROJECT_ID, MOZARK_SUITE_ID.
+pipelines:
+  custom:
+    app-studio:
+      - step:
+          name: App Studio suite
+          image: ghcr.io/aryank-08/mozark-run:1
+          max-time: 60
+          script:
+            - export MOZARK_RESULTS_DIR=test-results   # Bitbucket shows test-results/**/*.xml in the Tests tab
+            - export MOZARK_APP_VERSION=${BITBUCKET_TAG:-$BITBUCKET_BRANCH}
+            - mozark-run
+          artifacts:
+            - test-results/**

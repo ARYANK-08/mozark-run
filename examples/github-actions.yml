@@ -1,0 +1,35 @@
+# .github/workflows/app-studio.yml
+# Secret: MOZARK_TOKEN. Variables: MOZARK_API_URL, MOZARK_APP_URL, MOZARK_ORG_ID, MOZARK_APP_ID, MOZARK_PROJECT_ID, MOZARK_SUITE_ID.
+name: App Studio
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  app-studio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: ./gradlew assembleRelease
+
+      - uses: ARYANK-08/mozark-run@v1
+        with:
+          mozark-token: ${{ secrets.MOZARK_TOKEN }}
+          api-url: ${{ vars.MOZARK_API_URL }}
+          app-url: ${{ vars.MOZARK_APP_URL }}
+          org-id: ${{ vars.MOZARK_ORG_ID }}
+          app-id: ${{ vars.MOZARK_APP_ID }}
+          project-id: ${{ vars.MOZARK_PROJECT_ID }}
+          suite-id: ${{ vars.MOZARK_SUITE_ID }}
+          build-path: app/build/outputs/apk/release/app-release.apk
+          app-version: ${{ github.ref_name }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-studio-results
+          path: results/

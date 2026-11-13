@@ -1,0 +1,82 @@
+name: Mozark App Studio run
+description: Upload a build, run an App Studio suite on real devices, and fail the job when tests fail.
+branding:
+  icon: smartphone
+  color: blue
+
+inputs:
+  mozark-token:
+    description: CI key (uak_…) created by an App Studio admin. Store it as a secret.
+    required: true
+  api-url:
+    description: App Studio API base, shown in App Studio › Run from CI.
+    required: true
+  app-url:
+    description: App Studio UI base, used for report links. Without it the links are paths.
+    required: false
+    default: ''
+  org-id:
+    description: ACP organization id.
+    required: true
+  app-id:
+    description: ACP app id.
+    required: true
+  project-id:
+    description: App Studio project id.
+    required: true
+  suite-id:
+    description: The suite (job template) to run.
+    required: true
+  build-path:
+    description: .apk/.ipa to upload and test (e.g. the APK this workflow just built).
+    required: false
+    default: ''
+  build-id:
+    description: A build already uploaded to App Studio, used instead of uploading. Ignored when build-path is set.
+    required: false
+    default: ''
+  app-version:
+    description: Shown on the run, e.g. the tag being released.
+    required: false
+    default: ''
+  time-zone:
+    description: IANA zone the run's suite names are stamped in, e.g. Asia/Kolkata. Omitted, UTC.
+    required: false
+    default: ''
+  timeout-minutes:
+    description: Give up (exit 3) after this long.
+    required: false
+    default: '45'
+  results-dir:
+    description: Where junit.xml and run.json are written.
+    required: false
+    default: results
+
+outputs:
+  run-id:
+    description: The App Studio CI run id.
+    value: ${{ steps.run.outputs.run-id }}
+  result:
+    description: PASSED, FAILED or ERRORED.
+    value: ${{ steps.run.outputs.result }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      run: ${{ github.action_path }}/run.sh
+      env:
+        MOZARK_TOKEN: ${{ inputs.mozark-token }}
+        MOZARK_API_URL: ${{ inputs.api-url }}
+        MOZARK_APP_URL: ${{ inputs.app-url }}
+        MOZARK_ORG_ID: ${{ inputs.org-id }}
+        MOZARK_APP_ID: ${{ inputs.app-id }}
+        MOZARK_PROJECT_ID: ${{ inputs.project-id }}
+        MOZARK_SUITE_ID: ${{ inputs.suite-id }}
+        MOZARK_BUILD_PATH: ${{ inputs.build-path }}
+        MOZARK_BUILD_ID: ${{ inputs.build-id }}
+        MOZARK_APP_VERSION: ${{ inputs.app-version }}
+        MOZARK_TIME_ZONE: ${{ inputs.time-zone }}
+        MOZARK_TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        MOZARK_RESULTS_DIR: ${{ inputs.results-dir }}
