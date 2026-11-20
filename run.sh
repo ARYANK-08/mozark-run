@@ -4,6 +4,9 @@
 set -euo pipefail
 
 readonly EXIT_PASSED=0 EXIT_FAILED=1 EXIT_ERRORED=2 EXIT_TIMEOUT=3
+readonly EXIT_DEVICES_BUSY=75
+readonly DEVICES_BUSY_MESSAGE="devices are free right now"
+readonly DEVICE_WAIT_SECONDS="${MOZARK_DEVICE_WAIT_SECONDS:-30}"
 readonly POLL_SECONDS="${MOZARK_POLL_SECONDS:-15}"
 readonly BUILD_POLL_SECONDS=10
 readonly TRANSIENT_RETRIES=5
@@ -54,7 +57,7 @@ server_message() {
 
 # 2xx prints the body; 4xx stops with the server's reason; 5xx and network errors are retried.
 api() {
-  local attempt status body
+  local attempt status body message
   body=$(mktemp)
   for ((attempt = 1; attempt <= TRANSIENT_RETRIES; attempt++)); do
     status=$(curl -sS -o "$body" -w '%{http_code}' \
@@ -62,7 +65,11 @@ api() {
       -H "x-org-id: $MOZARK_ORG_ID" -H "x-app-id: $MOZARK_APP_ID" -H "x-project-id: $MOZARK_PROJECT_ID" \
       "$@") || status=000
     if [[ $status == 2* ]]; then cat "$body"; rm -f "$body"; return 0; fi
-    [[ $status == 4* ]] && fail "App Studio refused the request ($status): $(server_message "$body")"
+    if [[ $status == 4* ]]; then
+      message=$(server_message "$body")
+      [[ $status == 400 && $message == *"$DEVICES_BUSY_MESSAGE"* ]] && { echo "$message" >&2; exit "$EXIT_DEVICES_BUSY"; }
+      fail "App Studio refused the request ($status): $message"
+    fi
     echo "App Studio unavailable ($status), retry $attempt/$TRANSIENT_RETRIES" >&2
     sleep $((attempt * 5))
   done
@@ -117,6 +124,18 @@ trigger() {
     "$CI_API/suites/$MOZARK_SUITE_ID/runs"
 }
 
+# A shared lab's device is often still busy with someone else's run; wait for it inside the step's timeout instead of failing.
+start_run() {
+  local build_id=$1 run code
+  while :; do
+    run=$(trigger "$build_id") && { echo "$run"; return 0; } || code=$?
+    [[ $code == "$EXIT_DEVICES_BUSY" ]] || exit "$code"
+    check_deadline
+    echo "  $(date +%H:%M:%S) waiting ${DEVICE_WAIT_SECONDS}s for a device to free up" >&2
+    sleep "$DEVICE_WAIT_SECONDS"
+  done
+}
+
 wait_for_result() {
   local run_id=$1 view
   while :; do
@@ -159,7 +178,7 @@ main() {
 
   local build_id run run_id view result
   build_id=$(resolve_build)
-  run=$(trigger "$build_id")
+  run=$(start_run "$build_id")
   run_id=$(jq -r .id <<<"$run")
   echo "Run $run_id started: $(jq -r '[.jobs[].jobId] | join(", ")' <<<"$run")" >&2
   jq -r --arg ui "$APP_URL" --arg query "$REPORT_QUERY" '.jobs[] | "Report: \($ui)\(.reportPath)?\($query)"' <<<"$run" >&2
