@@ -12,6 +12,8 @@ readonly CI_API="${MOZARK_API_URL%/}/ci/v1"
 readonly RESULTS_DIR="${MOZARK_RESULTS_DIR:-results}"
 APP_URL="${MOZARK_APP_URL:-}"
 readonly APP_URL="${APP_URL%/}"
+# App Studio opens a link with these ids in the same org, app and project, instead of whatever the viewer last picked.
+readonly REPORT_QUERY="orgId=${MOZARK_ORG_ID:-}&appId=${MOZARK_APP_ID:-}&projectId=${MOZARK_PROJECT_ID:-}"
 
 first_set() {
   local name
@@ -134,10 +136,11 @@ publish() {
   echo "$view" >"$RESULTS_DIR/run.json"
   api "$CI_API/runs/$run_id/junit" >"$RESULTS_DIR/junit.xml"
 
-  jq -r --arg ui "$APP_URL" '.jobs[] | "  \(.platform) \(.verdict) \(.summary.passed // 0)/\(.summary.total // 0)  \($ui)\(.reportPath)"' <<<"$view" >&2
+  jq -r --arg ui "$APP_URL" --arg query "$REPORT_QUERY" \
+    '.jobs[] | "  \(.platform) \(.verdict) \(.summary.passed // 0)/\(.summary.total // 0)  \($ui)\(.reportPath)?\($query)"' <<<"$view" >&2
   # The summary is a convenience: failing to render it must never change the run's exit code.
   if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-    MOZARK_ELAPSED=$SECONDS MOZARK_BUILD_LABEL=$(build_label "$build_id") \
+    MOZARK_ELAPSED=$SECONDS MOZARK_BUILD_LABEL=$(build_label "$build_id") MOZARK_REPORT_QUERY=$REPORT_QUERY \
       python3 "$(dirname "$0")/summary.py" "$RESULTS_DIR" >>"$GITHUB_STEP_SUMMARY" ||
       echo "::warning::Could not write the job summary; results are in $RESULTS_DIR"
   fi
@@ -159,7 +162,7 @@ main() {
   run=$(trigger "$build_id")
   run_id=$(jq -r .id <<<"$run")
   echo "Run $run_id started: $(jq -r '[.jobs[].jobId] | join(", ")' <<<"$run")" >&2
-  jq -r --arg ui "$APP_URL" '.jobs[] | "Report: \($ui)\(.reportPath)"' <<<"$run" >&2
+  jq -r --arg ui "$APP_URL" --arg query "$REPORT_QUERY" '.jobs[] | "Report: \($ui)\(.reportPath)?\($query)"' <<<"$run" >&2
   view=$(wait_for_result "$run_id")
   result=$(jq -r .result <<<"$view")
   publish "$view" "$build_id"

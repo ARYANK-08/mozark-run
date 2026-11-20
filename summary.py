@@ -45,9 +45,11 @@ def main(results_dir):
     app_url = env.get("MOZARK_APP_URL", "").rstrip("/")
     commit = env.get("COMMIT_SHA", "")[:7]
     branch = env.get("BRANCH", "")
-    reports = " · ".join(f"[{job['platform']} report]({app_url}{job['reportPath']})" for job in run.get("jobs", []))
+    query = env.get("MOZARK_REPORT_QUERY", "")
+    report_links = [(job["platform"], f"{app_url}{job['reportPath']}" + (f"?{query}" if query else "")) for job in run.get("jobs", [])]
+    reports = " · ".join(f"[{platform} report]({link})" for platform, link in report_links)
 
-    links = [f"**[Open the full report in App Studio →]({app_url}{job['reportPath']})**" for job in run.get("jobs", [])]
+    links = [f"**[Open the full report in App Studio →]({link})**" for _, link in report_links]
     out = [
         f"## {RESULT_BADGE.get(result, '⚠️')} App Studio suite · {result}",
         f"> {len(rows) - failed} of {len(rows)} tests passed on {devices} device(s) · {duration(env.get('MOZARK_ELAPSED', 0))}",
